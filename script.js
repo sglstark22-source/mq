@@ -729,6 +729,12 @@ function initializeAdminHandlers() {
             openSetModal();
         });
     }
+    const deleteSetBtn = document.getElementById('delete-set-btn');
+    if (deleteSetBtn) {
+        deleteSetBtn.addEventListener('click', function() {
+            deleteSet();
+        });
+    }
 
     // Question form submission
     const questionForm = document.getElementById('question-form');
@@ -845,6 +851,29 @@ function saveSet() {
     if (setSelector) setSelector.value = String(newId);
     loadAdminDashboard();
     loadQuestionsForSet(newId);
+    renderHomeSets();
+}
+function deleteSet() {
+    const setSelector = document.getElementById('set-selector');
+    if (!setSelector || !setSelector.value) {
+        alert('Please select a question set first');
+        return;
+    }
+    const setId = parseInt(setSelector.value);
+    const setName = questionSets[setId] ? questionSets[setId].name : `Set ${setId}`;
+    if (!confirm(`Delete "${setName}" and all its questions?`)) return;
+    delete questionSets[setId];
+    try {
+        localStorage.setItem('questionSets', JSON.stringify(questionSets));
+    } catch (e) {
+        alert('Error deleting set. Please try again.');
+        return;
+    }
+    refreshSetSelector();
+    setSelector.value = '';
+    const questionsList = document.getElementById('questions-list');
+    if (questionsList) questionsList.innerHTML = '';
+    loadAdminDashboard();
     renderHomeSets();
 }
 function loadAdminDashboard() {
