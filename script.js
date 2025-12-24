@@ -884,6 +884,7 @@ function loadAdminDashboard() {
         totalQuestions += set.questions.length;
     });
     document.getElementById('total-questions-admin').textContent = totalQuestions;
+    refreshSetSelector();
 }
 
 function switchTab(tabName) {
@@ -899,6 +900,7 @@ function switchTab(tabName) {
     
     // Load questions when manage questions tab is active
     if (tabName === 'questions') {
+        refreshSetSelector();
         const setSelector = document.getElementById('set-selector');
         if (setSelector.value) {
             loadQuestionsForSet(parseInt(setSelector.value));
