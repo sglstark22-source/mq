@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeLoginHandlers();
     initializeHomeScreen();
     initializeAdminHandlers();
+    initializeTheme();
 });
 
 // Check if user is authenticated and route accordingly
@@ -73,6 +74,26 @@ function updateUserInfo() {
     if (user) {
         document.getElementById('user-name').textContent = `Welcome, ${user.name} (${user.role})`;
         document.getElementById('user-info').style.display = 'flex';
+    }
+}
+function initializeTheme() {
+    const saved = localStorage.getItem('theme') || 'light';
+    if (saved === 'dark') {
+        document.body.classList.add('theme-dark');
+    } else {
+        document.body.classList.remove('theme-dark');
+    }
+    const btn = document.getElementById('theme-toggle');
+    if (btn) {
+        btn.addEventListener('click', function(e) {
+            const rect = btn.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            btn.style.setProperty('--x', x + 'px');
+            btn.style.setProperty('--y', y + 'px');
+            const isDark = document.body.classList.toggle('theme-dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        });
     }
 }
 
@@ -205,10 +226,56 @@ function renderHomeSets() {
         });
     });
 }
+function hashString(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+        h = ((h << 5) - h) + s.charCodeAt(i);
+        h |= 0;
+    }
+    return h >>> 0;
+}
+function mulberry32(a) {
+    return function() {
+        a += 0x6D2B79F5;
+        let t = Math.imul(a ^ a >>> 15, 1 | a);
+        t ^= t + Math.imul(t ^ t >>> 7, 61 | t);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+function seededShuffle(arr, rng) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        const tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+}
+function getAssignedOrder(username, setId, baseSet) {
+    const key = `assignedOrder:${username}:${setId}`;
+    const saved = sessionStorage.getItem(key);
+    const ids = baseSet.questions.map(q => q.id);
+    if (saved) {
+        try {
+            const order = JSON.parse(saved);
+            const valid = order.filter(id => ids.includes(id));
+            if (valid.length === ids.length) return valid;
+        } catch {}
+    }
+    const rng = mulberry32(hashString(`${username}|${setId}`));
+    const order = ids.slice();
+    seededShuffle(order, rng);
+    sessionStorage.setItem(key, JSON.stringify(order));
+    return order;
+}
 
 // Start quiz with selected question set
 function startQuiz(setId) {
-    currentSet = questionSets[setId];
+    const baseSet = questionSets[setId];
+    const user = getCurrentUser();
+    const username = user ? user.username : 'guest';
+    const order = getAssignedOrder(username, setId, baseSet);
+    const personalized = order.map(id => baseSet.questions.find(q => q.id === id)).filter(Boolean);
+    currentSet = { name: baseSet.name, questions: personalized };
     currentSetId = setId;
     currentQuestionIndex = 0;
     userAnswers = {};
@@ -735,6 +802,12 @@ function initializeAdminHandlers() {
             deleteSet();
         });
     }
+    const promoteBtn = document.getElementById('promote-student-btn');
+    if (promoteBtn) {
+        promoteBtn.addEventListener('click', function() {
+            openPromoteModal();
+        });
+    }
 
     // Question form submission
     const questionForm = document.getElementById('question-form');
@@ -764,6 +837,18 @@ function initializeAdminHandlers() {
         cancelSetBtn.addEventListener('click', closeSetModal);
     }
 
+    const promoteForm = document.getElementById('promote-form');
+    if (promoteForm) {
+        promoteForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            savePromotion();
+        });
+    }
+    const cancelPromoteBtn = document.getElementById('cancel-promote-btn');
+    if (cancelPromoteBtn) {
+        cancelPromoteBtn.addEventListener('click', closePromoteModal);
+    }
+
     // Close modal on X click
     const closeModals = document.querySelectorAll('.close-modal');
     closeModals.forEach(btn => {
@@ -772,6 +857,7 @@ function initializeAdminHandlers() {
             closeDoubtModal();
             closeReplyModal();
             closeSetModal();
+            closePromoteModal();
         });
     });
 
@@ -875,6 +961,137 @@ function deleteSet() {
     if (questionsList) questionsList.innerHTML = '';
     loadAdminDashboard();
     renderHomeSets();
+}
+function openPromoteModal() {
+    const modal = document.getElementById('promote-modal');
+    const input = document.getElementById('promote-username');
+    if (input) input.value = '';
+    const list = document.getElementById('promote-student-list');
+    const adminList = document.getElementById('promote-admin-list');
+    if (list) {
+        const users = getUsers();
+        const students = Object.values(users).filter(u => u.role === 'student');
+        if (students.length === 0) {
+            list.innerHTML = '<p class="no-results">No students found.</p>';
+        } else {
+            list.innerHTML = `
+                <div class="results-list">
+                    ${students.map(u => `
+                        <div class="result-row">
+                            <span>${u.name} (@${u.username})</span>
+                            <div style="display:flex; gap:8px;">
+                                <button type="button" class="btn btn-small btn-primary" data-username="${u.username}">Select</button>
+                                <button type="button" class="btn btn-small btn-danger" data-delete-username="${u.username}">Delete</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            list.querySelectorAll('button[data-username]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const uname = this.getAttribute('data-username');
+                    const inputEl = document.getElementById('promote-username');
+                    if (inputEl) inputEl.value = uname;
+                });
+            });
+            list.querySelectorAll('button[data-delete-username]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const uname = this.getAttribute('data-delete-username');
+                    deleteStudent(uname);
+                });
+            });
+        }
+    }
+    if (adminList) {
+        const users = getUsers();
+        const admins = Object.values(users).filter(u => u.role === 'admin');
+        if (admins.length === 0) {
+            adminList.innerHTML = '<p class="no-results">No admins found.</p>';
+        } else {
+            adminList.innerHTML = `
+                <div class="results-list">
+                    ${admins.map(u => `
+                        <div class="result-row">
+                            <span>${u.name} (@${u.username})</span>
+                            <div style="display:flex; gap:8px;">
+                                <button type="button" class="btn btn-small btn-danger" data-delete-admin="${u.username}">Delete</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            adminList.querySelectorAll('button[data-delete-admin]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const uname = this.getAttribute('data-delete-admin');
+                    deleteAdmin(uname);
+                });
+            });
+        }
+    }
+    if (modal) modal.style.display = 'block';
+}
+
+function deleteStudent(username) {
+    const users = getUsers();
+    const user = users[username];
+    if (!user || user.role !== 'student') {
+        alert('Student not found');
+        return;
+    }
+    if (!confirm(`Delete student "${user.name}" (@${username})?`)) return;
+    delete users[username];
+    saveUsers(users);
+    openPromoteModal();
+    alert('Student deleted');
+}
+function deleteAdmin(username) {
+    const users = getUsers();
+    const user = users[username];
+    if (!user || user.role !== 'admin') {
+        alert('Admin not found');
+        return;
+    }
+    const current = getCurrentUser();
+    const adminCount = Object.values(users).filter(u => u.role === 'admin').length;
+    if (current && current.username === username) {
+        alert('You cannot delete your own admin account');
+        return;
+    }
+    if (adminCount <= 1) {
+        alert('At least one admin must remain');
+        return;
+    }
+    if (!confirm(`Delete admin "${user.name}" (@${username})?`)) return;
+    delete users[username];
+    saveUsers(users);
+    openPromoteModal();
+    alert('Admin deleted');
+}
+function closePromoteModal() {
+    const modal = document.getElementById('promote-modal');
+    if (modal) modal.style.display = 'none';
+}
+function savePromotion() {
+    const input = document.getElementById('promote-username');
+    const username = input ? input.value.trim() : '';
+    if (!username) {
+        alert('Please enter a username');
+        return;
+    }
+    const users = getUsers();
+    const user = users[username];
+    if (!user) {
+        alert('User not found');
+        return;
+    }
+    if (user.role === 'admin') {
+        alert('User is already an admin');
+        return;
+    }
+    user.role = 'admin';
+    saveUsers(users);
+    closePromoteModal();
+    alert('Student promoted to admin');
 }
 function loadAdminDashboard() {
     // Update stats
@@ -1428,22 +1645,27 @@ window.addEventListener('click', function(event) {
 
     const setModal = document.getElementById('set-modal');
     if (event.target === setModal) closeSetModal();
+    const promoteModal = document.getElementById('promote-modal');
+    if (event.target === promoteModal) closePromoteModal();
 });
 
 // Load question sets from localStorage on page load if available
 window.addEventListener('load', function() {
     const savedSets = localStorage.getItem('questionSets');
-    if (savedSets) {
-        try {
+    try {
+        if (savedSets) {
             const parsed = JSON.parse(savedSets);
+            Object.keys(questionSets).forEach(key => delete questionSets[key]);
             Object.keys(parsed).forEach(key => {
                 if (parsed[key] && parsed[key].questions) {
                     questionSets[key] = parsed[key];
                 }
             });
-        } catch (e) {
-            console.error('Error loading saved questions:', e);
+        } else {
+            localStorage.setItem('questionSets', JSON.stringify(questionSets));
         }
+    } catch (e) {
+        console.error('Error loading saved questions:', e);
     }
 });
 
