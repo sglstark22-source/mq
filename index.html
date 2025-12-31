@@ -11,8 +11,9 @@
         <header>
             <h1>MCQ WEB APP</h1>
             <p class="subtitle">Multiple Choice Questions Practice</p>
-            <div id="user-info" class="user-info" style="display: none;">
+            <div class="user-info" id="user-info" style="display: none;">
                 <span id="user-name"></span>
+                <button id="theme-toggle" class="btn btn-small">Theme</button>
                 <button id="logout-btn" class="btn btn-small">Logout</button>
             </div>
         </header>
@@ -98,6 +99,7 @@
                         </select>
                         <button id="add-set-btn" class="btn btn-secondary">Add New Set</button>
                         <button id="delete-set-btn" class="btn btn-danger">Delete Set</button>
+                        <button id="promote-student-btn" class="btn btn-primary">Promote Student</button>
                         <button id="add-question-btn" class="btn btn-primary">Add New Question</button>
                     </div>
                     <div id="questions-list" class="questions-list">
@@ -298,6 +300,32 @@
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancel-set-btn">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Set</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Promote Student Modal -->
+    <div id="promote-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Promote Student to Admin</h2>
+            <form id="promote-form">
+                <div class="form-group">
+                    <label for="promote-username">Student Username</label>
+                    <input type="text" id="promote-username" placeholder="student username" required>
+                </div>
+                <div class="form-group">
+                    <label>Students</label>
+                    <div id="promote-student-list"></div>
+                </div>
+                <div class="form-group">
+                    <label>Admins</label>
+                    <div id="promote-admin-list"></div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-promote-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Promote</button>
                 </div>
             </form>
         </div>
