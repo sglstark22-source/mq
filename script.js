@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeLoginHandlers();
     initializeHomeScreen();
     initializeAdminHandlers();
-    initializeTheme();
 });
 
 // Check if user is authenticated and route accordingly
@@ -74,26 +73,6 @@ function updateUserInfo() {
     if (user) {
         document.getElementById('user-name').textContent = `Welcome, ${user.name} (${user.role})`;
         document.getElementById('user-info').style.display = 'flex';
-    }
-}
-function initializeTheme() {
-    const saved = localStorage.getItem('theme') || 'light';
-    if (saved === 'dark') {
-        document.body.classList.add('theme-dark');
-    } else {
-        document.body.classList.remove('theme-dark');
-    }
-    const btn = document.getElementById('theme-toggle');
-    if (btn) {
-        btn.addEventListener('click', function(e) {
-            const rect = btn.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            btn.style.setProperty('--x', x + 'px');
-            btn.style.setProperty('--y', y + 'px');
-            const isDark = document.body.classList.toggle('theme-dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-        });
     }
 }
 
@@ -208,10 +187,11 @@ function renderHomeSets() {
     const container = document.getElementById('question-sets');
     if (!container) return;
     container.innerHTML = '';
-    Object.keys(questionSets).forEach(setId => {
+    Object.keys(questionSets).forEach((setId, i) => {
         const set = questionSets[setId];
         const card = document.createElement('div');
-        card.className = 'set-card';
+        card.className = 'set-card appear';
+        card.style.animationDelay = (i * 0.08) + 's';
         card.setAttribute('data-set', setId);
         card.innerHTML = `
             <h3>${set.name}</h3>
@@ -324,6 +304,12 @@ function initializeQuestionPalette() {
 
 // Load current question
 function loadQuestion() {
+    const qc = document.querySelector('.question-container');
+    if (qc) {
+        qc.classList.remove('swap-enter');
+        void qc.offsetWidth;
+        qc.classList.add('swap-enter');
+    }
     const question = currentSet.questions[currentQuestionIndex];
     
     // Update question number and text
